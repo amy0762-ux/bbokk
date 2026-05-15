@@ -9,24 +9,24 @@
 // ====================================================
 function doPost(e) {
   try {
-    var SPREADSHEET_ID = "여기에_스프레드시트_ID_붙여넣기"; // ★ doGet과 동일하게
-    var SHEET_NAME     = "시트1";
-    var FOLDER_ID      = "여기에_드라이브_폴더_ID_붙여넣기"; // ★ 사진 저장할 Drive 폴더 ID
+    var SPREADSHEET_ID = "1Mce0jjr0i54WO4aL_Q4pY3S4RmNU2ezJZw4-9Ijzbl0"; // ★ doGet과 동일하게
+    var SHEET_NAME = "시트1";
+    var FOLDER_ID = "1e0bct-dEkct64mT_eUHEvGFPTPj1BiND"; // ★ 사진 저장할 Drive 폴더 ID
 
     var payload = JSON.parse(e.postData.contents);
-    var photos  = Array.isArray(payload.photos) ? payload.photos : [];
+    var photos = Array.isArray(payload.photos) ? payload.photos : [];
     if (photos.length === 0) return buildResponse({ error: "photos 배열 비어 있음" });
 
     var folder = DriveApp.getFolderById(FOLDER_ID);
-    var ss     = SpreadsheetApp.openById(SPREADSHEET_ID);
-    var sheet  = ss.getSheetByName(SHEET_NAME);
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var sheet = ss.getSheetByName(SHEET_NAME);
 
     var count = 0;
     for (var i = 0; i < photos.length; i++) {
-      var p     = photos[i];
+      var p = photos[i];
       var bytes = Utilities.base64Decode(p.image);
-      var blob  = Utilities.newBlob(bytes, p.mimeType || "image/jpeg", p.fileName || ("photo_" + Date.now() + ".jpg"));
-      var file  = folder.createFile(blob);
+      var blob = Utilities.newBlob(bytes, p.mimeType || "image/jpeg", p.fileName || ("photo_" + Date.now() + ".jpg"));
+      var file = folder.createFile(blob);
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
       var photoUrl = "https://lh3.googleusercontent.com/d/" + file.getId();
       sheet.appendRow([new Date(), p.comment || "", photoUrl, p.geckoName || ""]);
@@ -44,10 +44,10 @@ function doPost(e) {
 function doGet(e) {
   try {
     // ★ 본인의 구글 스프레드시트 ID로 교체하세요
-    var SPREADSHEET_ID = "여기에_스프레드시트_ID_붙여넣기";
+    var SPREADSHEET_ID = "1Mce0jjr0i54WO4aL_Q4pY3S4RmNU2ezJZw4-9Ijzbl0";
     var SHEET_NAME = "시트1";
 
-    var ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
+    var ss = SpreadsheetApp.openById(SPREADSHEET_ID);
     var sheet = ss.getSheetByName(SHEET_NAME);
     var lastRow = sheet.getLastRow();
 
@@ -56,7 +56,7 @@ function doGet(e) {
     }
 
     // A~D열 (타임스탬프 / 코멘트 / 사진링크 / 주인공) 읽기
-    var range  = sheet.getRange(2, 1, lastRow - 1, 4);
+    var range = sheet.getRange(2, 1, lastRow - 1, 4);
     var values = range.getValues();
 
     var posts = [];
@@ -67,23 +67,23 @@ function doGet(e) {
       if (!row[0]) continue;
 
       var timestamp = row[0]; // A열: 타임스탬프
-      var comment   = row[1]; // B열: 코멘트
-      var photoUrl  = row[2]; // C열: 사진 링크
+      var comment = row[1]; // B열: 코멘트
+      var photoUrl = row[2]; // C열: 사진 링크
       var geckoName = row[3]; // D열: 주인공 (뽀또 / 뀨 / 둘 다)
 
       var directUrl = convertToDirect(String(photoUrl));
 
       posts.push({
         timestamp: formatDate(timestamp),
-        _ts:       new Date(timestamp).getTime(),
-        comment:   String(comment  || ""),
-        photoUrl:  directUrl || "",
+        _ts: new Date(timestamp).getTime(),
+        comment: String(comment || ""),
+        photoUrl: directUrl || "",
         geckoName: String(geckoName || "")
       });
     }
 
     // 타임스탬프 기준 최신 순 정렬
-    posts.sort(function(a, b) {
+    posts.sort(function (a, b) {
       return new Date(b._ts) - new Date(a._ts);
     });
 
@@ -129,12 +129,12 @@ function convertToDirect(url) {
 function formatDate(dateObj) {
   if (!dateObj) return "";
   try {
-    var d     = new Date(dateObj);
-    var year  = d.getFullYear();
+    var d = new Date(dateObj);
+    var year = d.getFullYear();
     var month = String(d.getMonth() + 1).padStart(2, "0");
-    var day   = String(d.getDate()).padStart(2, "0");
-    var hour  = String(d.getHours()).padStart(2, "0");
-    var min   = String(d.getMinutes()).padStart(2, "0");
+    var day = String(d.getDate()).padStart(2, "0");
+    var hour = String(d.getHours()).padStart(2, "0");
+    var min = String(d.getMinutes()).padStart(2, "0");
     return year + "." + month + "." + day + " " + hour + ":" + min;
   } catch (e) {
     return String(dateObj);
