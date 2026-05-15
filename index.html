@@ -698,6 +698,40 @@ function setProgress(show, current, total) {
   }
 }
 
+// ── hidden iframe form → GAS POST (CORS 우회) ──
+function submitViaForm(data) {
+  return new Promise((resolve) => {
+    const iframeName = 'gas_frame_' + Date.now();
+    const iframe = document.createElement('iframe');
+    iframe.name = iframeName;
+    iframe.style.display = 'none';
+    document.body.appendChild(iframe);
+
+    const form = document.createElement('form');
+    form.method = 'POST';
+    form.action = GAS_URL;
+    form.target = iframeName;
+    form.style.display = 'none';
+
+    const input = document.createElement('input');
+    input.type = 'hidden';
+    input.name = 'data';
+    input.value = JSON.stringify(data);
+    form.appendChild(input);
+    document.body.appendChild(form);
+
+    const cleanup = () => {
+      try { document.body.removeChild(form); } catch(_) {}
+      try { document.body.removeChild(iframe); } catch(_) {}
+    };
+
+    iframe.addEventListener('load', () => { cleanup(); resolve(); }, { once: true });
+    setTimeout(() => { cleanup(); resolve(); }, 30000);
+
+    form.submit();
+  });
+}
+
 // ── 이미지 압축 (canvas, max 1600px, JPEG 0.82) ──
 function compressImage(file) {
   return new Promise((resolve) => {
@@ -743,15 +777,10 @@ document.getElementById('upload-submit').addEventListener('click', async () => {
     }
 
     btn.textContent = '전송 중...';
-    await fetch(GAS_URL, {
-      method: 'POST',
-      mode:   'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify({ photos })
-    });
+    await submitViaForm({ photos });
 
     btn.textContent = '완료! 💛💚';
-    setTimeout(() => { closeUploadModal(); loadPosts(); }, 1400);
+    setTimeout(() => { closeUploadModal(); loadPosts(); }, 3000);
 
   } catch (err) {
     alert('업로드 실패: ' + err.message);

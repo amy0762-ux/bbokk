@@ -13,7 +13,8 @@ function doPost(e) {
     var SHEET_NAME = "시트1";
     var FOLDER_ID = "1e0bct-dEkct64mT_eUHEvGFPTPj1BiND"; // ★ 사진 저장할 Drive 폴더 ID
 
-    var payload = JSON.parse(e.postData.contents);
+    var raw = (e.parameter && e.parameter.data) ? e.parameter.data : e.postData.contents;
+    var payload = JSON.parse(raw);
     var photos = Array.isArray(payload.photos) ? payload.photos : [];
     if (photos.length === 0) return buildResponse({ error: "photos 배열 비어 있음" });
 
