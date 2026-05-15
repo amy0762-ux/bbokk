@@ -472,19 +472,24 @@ function getCheer(geckoName) {
 }
 
 // ─────────────────────────────────
+const PAGE_SIZE = 20;
 let allPosts = [];
+let feedOffset = 0;
+let feedTotal = 0;
+let feedLoading = false;
+let feedObserver = null;
 
 async function loadPosts() {
   const feed = document.getElementById('feed');
   const refreshBtn = document.getElementById('refresh-btn');
   refreshBtn.classList.add('spinning');
+  allPosts = [];
+  feedOffset = 0;
+  feedTotal = 0;
+  feed.innerHTML = '';
+  disconnectObserver();
   try {
-    const res = await fetch(`${GAS_URL}?t=${Date.now()}`, { cache: 'no-store' });
-    if (!res.ok) throw new Error('서버 오류: ' + res.status);
-    const data = await res.json();
-    if (data.error) throw new Error(data.error);
-    allPosts = Array.isArray(data) ? data : [];
-    renderFeed();
+    await fetchPage(0, feed, true);
   } catch (err) {
     console.error('[뽀뀨]', err);
     feed.innerHTML = `
@@ -499,38 +504,80 @@ async function loadPosts() {
   }
 }
 
-function renderFeed() {
-  const feed = document.getElementById('feed');
-  if (allPosts.length === 0) {
-    feed.innerHTML = `
-      <div class="state-box">
-        <span class="state-emoji">🥚</span>
-        <p class="state-title">아직 등록된 사진이 없어요</p>
-        <p class="state-sub">첫 사진을 올려주세요!</p>
-      </div>`;
-    return;
+async function fetchPage(offset, feed, isFirst) {
+  if (feedLoading) return;
+  feedLoading = true;
+  try {
+    const res = await fetch(`${GAS_URL}?limit=${PAGE_SIZE}&offset=${offset}&t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('서버 오류: ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+
+    const posts = data.posts || [];
+    feedTotal = data.total || 0;
+    feedOffset = offset + posts.length;
+    allPosts = allPosts.concat(posts);
+
+    if (isFirst && allPosts.length === 0) {
+      feed.innerHTML = `
+        <div class="state-box">
+          <span class="state-emoji">🥚</span>
+          <p class="state-title">아직 등록된 사진이 없어요</p>
+          <p class="state-sub">첫 사진을 올려주세요!</p>
+        </div>`;
+      return;
+    }
+
+    posts.forEach((post) => appendCard(feed, post));
+
+    if (feedOffset < feedTotal) {
+      setupObserver(feed);
+    }
+  } finally {
+    feedLoading = false;
   }
-  feed.innerHTML = '';
-  allPosts.forEach((post) => {
-    const card = document.createElement('article');
-    card.className = 'post-card';
-    const imgHtml = post.photoUrl
-      ? `<img class="post-img" src="${sanitize(post.photoUrl)}" alt="뽀뀨 사진"
-             loading="lazy" onerror="this.remove()" onload="this.classList.add('loaded')" />`
-      : '';
-    const commentHtml = post.comment
-      ? `<span class="post-comment-text">${sanitize(post.comment)}</span>`
-      : `<span class="post-no-comment">오늘은 말없이 귀여움만 <img src="bbo.png" alt="🦎" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;" /></span>`;
-    card.innerHTML = `
-      <div class="post-date">${sanitize(post.timestamp)}</div>
-      <div class="post-img-wrap">
-        <div class="post-img-placeholder"><img src="bbo.png" alt="🦎" style="width:64px;height:64px;object-fit:contain;opacity:0.3;" /></div>
-        ${imgHtml}
-      </div>
-      <div class="post-body">${commentHtml}</div>`;
-    feed.appendChild(card);
-  });
 }
+
+function appendCard(feed, post) {
+  const card = document.createElement('article');
+  card.className = 'post-card';
+  const imgHtml = post.photoUrl
+    ? `<img class="post-img" src="${sanitize(post.photoUrl)}" alt="뽀뀨 사진"
+           loading="lazy" onerror="this.remove()" onload="this.classList.add('loaded')" />`
+    : '';
+  const commentHtml = post.comment
+    ? `<span class="post-comment-text">${sanitize(post.comment)}</span>`
+    : `<span class="post-no-comment">오늘은 말없이 귀여움만 <img src="bbo.png" alt="🦎" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;" /></span>`;
+  card.innerHTML = `
+    <div class="post-date">${sanitize(post.timestamp)}</div>
+    <div class="post-img-wrap">
+      <div class="post-img-placeholder"><img src="bbo.png" alt="🦎" style="width:64px;height:64px;object-fit:contain;opacity:0.3;" /></div>
+      ${imgHtml}
+    </div>
+    <div class="post-body">${commentHtml}</div>`;
+  feed.appendChild(card);
+}
+
+function setupObserver(feed) {
+  disconnectObserver();
+  const sentinel = document.createElement('div');
+  sentinel.id = 'feed-sentinel';
+  feed.appendChild(sentinel);
+  feedObserver = new IntersectionObserver((entries) => {
+    if (entries[0].isIntersecting) {
+      fetchPage(feedOffset, feed, false);
+    }
+  }, { rootMargin: '200px' });
+  feedObserver.observe(sentinel);
+}
+
+function disconnectObserver() {
+  if (feedObserver) { feedObserver.disconnect(); feedObserver = null; }
+  const old = document.getElementById('feed-sentinel');
+  if (old) old.remove();
+}
+
+function renderFeed() { loadPosts(); }
 
 // ── 모달: 시트 코멘트 + 랜덤 응원 메시지 함께 표시 ──
 function openRandom() {
@@ -698,38 +745,16 @@ function setProgress(show, current, total) {
   }
 }
 
-// ── hidden iframe form → GAS POST (CORS 우회) ──
-function submitViaForm(data) {
-  return new Promise((resolve) => {
-    const iframeName = 'gas_frame_' + Date.now();
-    const iframe = document.createElement('iframe');
-    iframe.name = iframeName;
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-
-    const form = document.createElement('form');
-    form.method = 'POST';
-    form.action = GAS_URL;
-    form.target = iframeName;
-    form.style.display = 'none';
-
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = 'data';
-    input.value = JSON.stringify(data);
-    form.appendChild(input);
-    document.body.appendChild(form);
-
-    const cleanup = () => {
-      try { document.body.removeChild(form); } catch(_) {}
-      try { document.body.removeChild(iframe); } catch(_) {}
-    };
-
-    iframe.addEventListener('load', () => { cleanup(); resolve(); }, { once: true });
-    setTimeout(() => { cleanup(); resolve(); }, 30000);
-
-    form.submit();
+// ── no-cors fetch → GAS POST (form-urlencoded, CORS 우회) ──
+async function submitViaForm(data) {
+  const body = 'data=' + encodeURIComponent(JSON.stringify(data));
+  await fetch(GAS_URL, {
+    method: 'POST',
+    mode: 'no-cors',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: body
   });
+  // no-cors라 응답 못 읽지만 GAS e.parameter.data 정상 수신
 }
 
 // ── 이미지 압축 (canvas, max 1600px, JPEG 0.82) ──

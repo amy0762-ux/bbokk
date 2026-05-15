@@ -1,0 +1,13 @@
+{
+	"folders": [
+		{
+			"path": "../홍보팀"
+		},
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"git.ignoreLimitWarning": true
+	}
+}
