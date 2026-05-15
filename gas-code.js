@@ -34,7 +34,7 @@ function doPost(e) {
       var blob = Utilities.newBlob(bytes, p.mimeType || "image/jpeg", p.fileName || ("photo_" + Date.now() + ".jpg"));
       var file = folder.createFile(blob);
       file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      var photoUrl = "https://drive.google.com/uc?export=view&id=" + file.getId();
+      var photoUrl = "https://drive.google.com/thumbnail?id=" + file.getId() + "&sz=w1200";
       sheet.appendRow([new Date(), p.comment || "", photoUrl, p.geckoName || ""]);
       sendTelegramNotification(p.geckoName || "둘 다", p.comment || "");
       count++;
@@ -171,19 +171,18 @@ function doGet(e) {
 function convertToDirect(url) {
   if (!url) return "";
 
-  // 형식 1: /file/d/FILE_ID/view → uc export
+  // 형식 1: /file/d/FILE_ID
   var match1 = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (match1) {
-    return "https://drive.google.com/uc?export=view&id=" + match1[1];
-  }
+  if (match1) return "https://drive.google.com/thumbnail?id=" + match1[1] + "&sz=w1200";
 
-  // 형식 2: lh3.googleusercontent.com/d/FILE_ID → uc export
+  // 형식 2: lh3.googleusercontent.com/d/FILE_ID
   var match2 = url.match(/lh3\.googleusercontent\.com\/d\/([a-zA-Z0-9_-]+)/);
-  if (match2) {
-    return "https://drive.google.com/uc?export=view&id=" + match2[1];
-  }
+  if (match2) return "https://drive.google.com/thumbnail?id=" + match2[1] + "&sz=w1200";
 
-  // 이미 uc?export 형식이면 그대로
+  // 형식 3: uc?export=view&id=FILE_ID → thumbnail으로 교체
+  var match3 = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (match3) return "https://drive.google.com/thumbnail?id=" + match3[1] + "&sz=w1200";
+
   return url;
 }
 
