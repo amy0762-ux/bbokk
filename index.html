@@ -513,8 +513,9 @@ async function fetchPage(offset, feed, isFirst) {
     const data = await res.json();
     if (data.error) throw new Error(data.error);
 
-    const posts = data.posts || [];
-    feedTotal = data.total || 0;
+    // 구버전 GAS가 배열 직접 반환할 경우 대응
+    const posts = Array.isArray(data) ? data : (data.posts || []);
+    feedTotal = Array.isArray(data) ? data.length : (data.total || 0);
     feedOffset = offset + posts.length;
     allPosts = allPosts.concat(posts);
 

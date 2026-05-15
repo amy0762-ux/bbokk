@@ -116,7 +116,7 @@ function doGet(e) {
     var lastRow = sheet.getLastRow();
 
     if (lastRow < 2) {
-      return buildResponse([]);
+      return buildResponse({ posts: [], total: 0, offset: 0, limit: 20 });
     }
 
     // A~D열 (타임스탬프 / 코멘트 / 사진링크 / 주인공) 읽기
