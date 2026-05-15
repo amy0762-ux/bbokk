@@ -1,0 +1,773 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <meta name="theme-color" content="#3a7d44" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <meta name="apple-mobile-web-app-title" content="뽀뀨 일기" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <title>💛 뽀뀨 일기</title>
+
+  <style>
+    *, *::before, *::after {
+      margin: 0; padding: 0;
+      box-sizing: border-box;
+      -webkit-tap-highlight-color: transparent;
+    }
+    :root {
+      --green-dark:  #2e6b3a;
+      --green-main:  #3a7d44;
+      --green-light: #e8f5e9;
+      --text-dark:   #1a1a1a;
+      --text-mid:    #555555;
+      --text-light:  #9e9e9e;
+      --border:      #ebebeb;
+      --bg:          #f7f7f7;
+      --white:       #ffffff;
+    }
+    html, body { height: 100%; background: var(--bg); color: var(--text-dark);
+      font-family: -apple-system, BlinkMacSystemFont, 'Noto Sans KR', 'Segoe UI', sans-serif; }
+
+    .app-wrap { max-width: 500px; margin: 0 auto; background: var(--bg); min-height: 100vh; }
+
+    /* ── 헤더 ── */
+    .header {
+      position: sticky; top: 0; z-index: 100;
+      background: var(--white); border-bottom: 1px solid var(--border);
+      padding: 14px 18px 12px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+    .header-logo { display: flex; align-items: center; gap: 8px; }
+    .header-emoji { font-size: 26px; line-height: 1; }
+    .header-title { font-size: 21px; font-weight: 800; color: var(--green-dark); letter-spacing: -0.5px; }
+    .header-subtitle { font-size: 11px; color: var(--text-light); font-weight: 400; margin-top: 1px; }
+    .header-refresh {
+      background: none; border: none; font-size: 20px; cursor: pointer;
+      padding: 6px; border-radius: 50%; color: var(--text-mid); transition: transform 0.4s;
+    }
+    .header-refresh.spinning { animation: spin 0.7s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── 피드 ── */
+    #feed { padding-bottom: 96px; }
+
+    /* ── 게시물 카드 ── */
+    .post-card {
+      background: var(--white); margin-bottom: 10px; overflow: hidden;
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      animation: fadeIn 0.35s ease;
+    }
+    @keyframes fadeIn { from { opacity:0; transform:translateY(8px); } to { opacity:1; transform:none; } }
+    .post-date { padding: 11px 16px 10px; font-size: 12px; color: var(--text-light); display: flex; align-items: center; gap: 5px; }
+    .post-date::before { content: '🕐'; font-size: 12px; }
+    .post-img-wrap { width: 100%; aspect-ratio: 1/1; background: var(--green-light); position: relative; overflow: hidden; }
+    .post-img-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 56px; opacity: 0.35; }
+    .post-img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transition: opacity 0.4s ease; }
+    .post-img.loaded { opacity: 1; }
+    .post-body { padding: 13px 16px 16px; }
+    .post-comment-text { font-size: 14px; line-height: 1.6; color: var(--text-dark); }
+    .post-no-comment { font-size: 13px; color: var(--text-light); font-style: italic; }
+
+    /* ── 상태 박스 ── */
+    .state-box { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 24px; gap: 14px; text-align: center; }
+    .state-emoji { font-size: 56px; animation: wobble 2s ease-in-out infinite; }
+    .gecko-img { image-rendering: auto; }
+    .gecko-img.wobble { animation: wobble 2s ease-in-out infinite; }
+    @keyframes wobble { 0%,100% { transform: rotate(-5deg); } 50% { transform: rotate(5deg); } }
+    .state-title { font-size: 16px; font-weight: 600; color: var(--text-mid); }
+    .state-sub { font-size: 13px; color: var(--text-light); }
+    .retry-btn { margin-top: 8px; padding: 10px 24px; background: var(--green-main); color: var(--white); border: none; border-radius: 24px; font-size: 14px; font-weight: 600; cursor: pointer; }
+
+    /* ── FAB 버튼 ── */
+    #fab {
+      position: fixed; bottom: 28px; right: 20px;
+      width: 60px; height: 60px; border-radius: 50%;
+      background: linear-gradient(145deg, #4caf50, #2e6b3a);
+      color: var(--white); border: none; font-size: 24px; cursor: pointer;
+      box-shadow: 0 4px 18px rgba(58,125,68,0.5);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 150; transition: transform 0.18s, box-shadow 0.18s;
+    }
+    @media (min-width: 500px) { #fab { right: calc(50% - 230px); } }
+    #fab:active { transform: scale(0.9); box-shadow: 0 2px 10px rgba(58,125,68,0.4); }
+
+    /* ── 랜덤 모달 ── */
+    #modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.88); z-index: 300;
+      flex-direction: column; align-items: center; justify-content: center;
+      padding: 20px; backdrop-filter: blur(4px); overflow-y: auto;
+    }
+    #modal.open { display: flex; animation: modalIn 0.25s ease; }
+    @keyframes modalIn { from { opacity:0; transform:scale(0.96); } to { opacity:1; transform:none; } }
+    .modal-close {
+      position: fixed; top: 18px; right: 18px;
+      background: rgba(255,255,255,0.15); border: none; color: white;
+      width: 40px; height: 40px; border-radius: 50%; font-size: 18px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center; z-index: 10;
+    }
+    .modal-label { font-size: 13px; font-weight: 700; color: rgba(255,255,255,0.5); letter-spacing: 2px; text-transform: uppercase; margin-bottom: 14px; }
+    .modal-img-wrap { width: 100%; max-width: 420px; aspect-ratio: 1/1; border-radius: 14px; overflow: hidden; background: #222; position: relative; flex-shrink: 0; }
+    .modal-img-placeholder { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: 64px; opacity: 0.3; }
+    #modal-img { width: 100%; height: 100%; object-fit: cover; position: absolute; inset: 0; opacity: 0; transition: opacity 0.4s; }
+    #modal-img.loaded { opacity: 1; }
+
+    /* 모달 정보 영역 */
+    .modal-info { margin-top: 16px; text-align: center; width: 100%; max-width: 420px; }
+    .modal-date { font-size: 12px; color: rgba(255,255,255,0.4); margin-bottom: 8px; }
+
+    /* 시트 코멘트 */
+    .modal-sheet-comment {
+      font-size: 15px; line-height: 1.55; color: rgba(255,255,255,0.88);
+      min-height: 22px; margin-bottom: 14px;
+    }
+
+    /* 응원 메시지 구분선 */
+    .modal-divider {
+      width: 40px; height: 1px; background: rgba(255,255,255,0.2);
+      margin: 0 auto 14px;
+    }
+
+    /* 응원 메시지 */
+    .modal-cheer {
+      font-size: 14px; line-height: 1.7;
+      color: rgba(255,255,255,0.72);
+      background: rgba(255,255,255,0.08);
+      border-radius: 12px; padding: 12px 16px;
+      border-left: 3px solid rgba(76,175,80,0.6);
+      text-align: left;
+    }
+
+    .modal-shuffle {
+      margin-top: 20px; padding: 12px 28px;
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.25);
+      color: white; border-radius: 28px; font-size: 14px;
+      font-weight: 600; cursor: pointer; transition: background 0.2s;
+      flex-shrink: 0;
+    }
+    .modal-shuffle:active { background: rgba(255,255,255,0.22); }
+
+    /* ── 업로드 버튼 (헤더) ── */
+    .header-upload {
+      background: none; border: none; font-size: 22px; cursor: pointer;
+      padding: 6px 8px; border-radius: 50%; color: var(--green-dark);
+      transition: background 0.15s;
+    }
+    .header-upload:active { background: var(--green-light); }
+    .header-actions { display: flex; align-items: center; gap: 4px; }
+
+    /* ── 업로드 모달 ── */
+    #upload-modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.55); z-index: 400;
+      align-items: flex-end; justify-content: center;
+      backdrop-filter: blur(3px);
+    }
+    #upload-modal.open { display: flex; animation: slideUp 0.28s ease; }
+    @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: none; opacity: 1; } }
+
+    .upload-sheet {
+      width: 100%; max-width: 500px;
+      background: var(--white); border-radius: 22px 22px 0 0;
+      padding: 0 0 env(safe-area-inset-bottom, 12px);
+      max-height: 92vh; overflow-y: auto;
+    }
+    .upload-handle {
+      width: 40px; height: 4px; background: var(--border);
+      border-radius: 2px; margin: 12px auto 0;
+    }
+    .upload-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 14px 18px 10px;
+      border-bottom: 1px solid var(--border);
+    }
+    .upload-title { font-size: 16px; font-weight: 700; color: var(--text-dark); }
+    .upload-close-btn {
+      background: none; border: none; font-size: 20px; cursor: pointer;
+      color: var(--text-mid); padding: 4px 8px;
+    }
+
+    /* 사진 선택 영역 */
+    .upload-pick-area {
+      margin: 14px 16px 0;
+      border: 2px dashed var(--border); border-radius: 14px;
+      padding: 28px 16px; text-align: center; cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .upload-pick-area:active { background: var(--green-light); border-color: var(--green-main); }
+    .upload-pick-area.has-files { display: none; }
+    .upload-pick-emoji { font-size: 36px; margin-bottom: 8px; }
+    .upload-pick-text { font-size: 14px; color: var(--text-mid); }
+    .upload-pick-sub { font-size: 12px; color: var(--text-light); margin-top: 4px; }
+    #upload-file-input { display: none; }
+
+    /* 사진 리스트 (사진별 개별 입력) */
+    .photo-list { padding: 12px 16px 0; display: flex; flex-direction: column; gap: 10px; }
+
+    .photo-list-item {
+      display: flex; gap: 10px; align-items: flex-start;
+      background: var(--bg); border-radius: 14px; padding: 10px;
+      border: 1px solid var(--border);
+    }
+    .item-thumb {
+      width: 80px; height: 80px; border-radius: 10px; overflow: hidden;
+      flex-shrink: 0; position: relative; background: var(--green-light);
+    }
+    .item-thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .item-remove {
+      position: absolute; top: 3px; right: 3px;
+      background: rgba(0,0,0,0.6); color: white; border: none;
+      width: 20px; height: 20px; border-radius: 50%; font-size: 10px;
+      cursor: pointer; display: flex; align-items: center; justify-content: center;
+    }
+    .item-fields { flex: 1; display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+    .item-gecko-chips { display: flex; gap: 5px; }
+    .item-gecko-chip {
+      flex: 1; padding: 5px 2px; border-radius: 8px; font-size: 11px; font-weight: 700;
+      border: 1.5px solid var(--border); background: var(--white); color: var(--text-mid);
+      cursor: pointer; transition: all 0.12s; text-align: center;
+    }
+    .item-gecko-chip.selected {
+      border-color: var(--green-main); background: var(--green-light); color: var(--green-dark);
+    }
+    .item-comment {
+      width: 100%; border: 1px solid var(--border); border-radius: 8px;
+      padding: 7px 10px; font-size: 13px; line-height: 1.45; resize: none;
+      font-family: inherit; color: var(--text-dark); background: var(--white); outline: none;
+    }
+    .item-comment:focus { border-color: var(--green-main); }
+
+    /* 사진 더 추가 버튼 */
+    .photo-add-more {
+      display: flex; align-items: center; justify-content: center; gap: 6px;
+      margin: 0 16px; padding: 11px; border-radius: 12px;
+      border: 1.5px dashed var(--border); background: none; cursor: pointer;
+      font-size: 13px; color: var(--text-mid); transition: background 0.15s;
+      width: calc(100% - 32px);
+    }
+    .photo-add-more:active { background: var(--green-light); }
+
+    /* 업로드 버튼 */
+    .upload-submit {
+      margin: 16px 16px 12px; width: calc(100% - 32px);
+      padding: 14px; border-radius: 14px; border: none;
+      background: linear-gradient(135deg, #4caf50, #2e6b3a);
+      color: white; font-size: 15px; font-weight: 700; cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    .upload-submit:disabled { opacity: 0.45; cursor: not-allowed; }
+
+    /* 업로드 진행 */
+    .upload-progress {
+      padding: 12px 16px; display: none;
+      align-items: center; gap: 10px;
+    }
+    .upload-progress.show { display: flex; }
+    .progress-bar-wrap { flex: 1; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+    .progress-bar { height: 100%; background: var(--green-main); border-radius: 3px; transition: width 0.3s; width: 0%; }
+    .progress-label { font-size: 12px; color: var(--text-mid); white-space: nowrap; }
+  </style>
+</head>
+<body>
+<div class="app-wrap">
+
+  <header class="header">
+    <div class="header-logo">
+      <img class="gecko-img" src="bbo.png" alt="뽀또" style="width:34px;height:34px;object-fit:contain;" />
+      <div>
+        <div class="header-title" id="title-trigger" style="user-select:none;">뽀뀨 일기</div>
+        <div class="header-subtitle">뽀또 &amp; 뀨의 하루하루 🌿</div>
+      </div>
+      <img class="gecko-img" src="kkyu.png" alt="뀨" style="width:34px;height:34px;object-fit:contain;" />
+    </div>
+    <div class="header-actions">
+      <button class="header-refresh" id="refresh-btn" title="새로고침">↻</button>
+    </div>
+  </header>
+
+  <main id="feed">
+    <div class="state-box" id="loading-state">
+      <img class="gecko-img wobble" src="bbo.png" alt="뽀뀨" style="width:72px;height:72px;object-fit:contain;" />
+      <p class="state-title">뽀뀨 사진 불러오는 중...</p>
+      <p class="state-sub">잠깐만 기다려줘요 💚</p>
+    </div>
+  </main>
+
+</div>
+
+<!-- 업로드 모달 -->
+<div id="upload-modal" role="dialog" aria-label="사진 올리기">
+  <div class="upload-sheet">
+    <div class="upload-handle"></div>
+    <div class="upload-header">
+      <span class="upload-title">📷 사진 올리기</span>
+      <button class="upload-close-btn" id="upload-close">✕</button>
+    </div>
+
+    <input type="file" id="upload-file-input" accept="image/*" multiple />
+
+    <!-- 사진 없을 때: 선택 유도 -->
+    <div class="upload-pick-area" id="upload-pick-area">
+      <img class="gecko-img" src="bbo.png" alt="뽀뀨" style="width:56px;height:56px;object-fit:contain;margin-bottom:8px;" />
+      <div class="upload-pick-text">사진을 선택해 주세요</div>
+      <div class="upload-pick-sub">여러 장 한 번에 선택 가능</div>
+    </div>
+
+    <!-- 사진 리스트 (사진 있을 때) -->
+    <div class="photo-list" id="photo-list" style="display:none"></div>
+    <button class="photo-add-more" id="photo-add-more" style="display:none">＋ 사진 더 추가</button>
+
+    <!-- 업로드 진행 -->
+    <div class="upload-progress" id="upload-progress">
+      <div class="progress-bar-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+      <span class="progress-label" id="progress-label">0 / 0</span>
+    </div>
+
+    <button class="upload-submit" id="upload-submit" disabled>업로드</button>
+  </div>
+</div>
+
+<!-- FAB -->
+<button id="fab" aria-label="랜덤 사진 보기">🎲</button>
+
+<!-- 랜덤 모달 -->
+<div id="modal" role="dialog" aria-label="랜덤 뽀뀨 사진">
+  <button class="modal-close" id="modal-close" aria-label="닫기">✕</button>
+  <p class="modal-label">✨ 오늘의 랜덤 뽀뀨</p>
+  <div class="modal-img-wrap">
+    <div class="modal-img-placeholder"><img class="gecko-img" src="bbo.png" alt="뽀뀨" style="width:80px;height:80px;object-fit:contain;opacity:0.4;" /></div>
+    <img id="modal-img" src="" alt="랜덤 뽀뀨 사진" />
+  </div>
+  <div class="modal-info">
+    <p class="modal-date" id="modal-date"></p>
+    <p class="modal-sheet-comment" id="modal-sheet-comment"></p>
+    <div class="modal-divider"></div>
+    <p class="modal-cheer" id="modal-cheer"></p>
+  </div>
+  <button class="modal-shuffle" id="modal-shuffle">🔀 다른 사진 보기</button>
+</div>
+
+<script>
+// ★ GAS 웹앱 URL
+const GAS_URL = "https://script.google.com/macros/s/AKfycbxh9ZoxMXRHUw8Phzz9OHiaTZJ4R0Onen8KE-DAyoGUNkzpntgXhXlkuzHlBOktRtatqg/exec";
+
+// ── 뽀또용 응원 메시지 30개 (한국어 15 + 영어 15) ──
+const cheersPpotto = [
+  "오늘도 뽀또가 찰딱 붙어서 응원할게! 💛",
+  "뽀또가 뽀뽀 보냄~ 받아줘 😘💛",
+  "밥 잘 챙겨 먹었지? 뽀또가 기다리고 있을게 💛",
+  "뽀또 눈에 웅니가 가득 담겨 있어 💛",
+  "웅니가 웃는 얼굴 상상하면 뽀또도 덩달아 신나 😄",
+  "뽀또가 꼬리 살랑살랑 흔들며 응원해~ 💛",
+  "뽀또의 오늘 미션: 웅니 기분 좋게 하기. 완료! 💛",
+  "웅니가 있어서 뽀또도 행복해. 진짜야 💛",
+  "오늘 뭐 먹었어? 맛있는 거 먹었으면 좋겠다 😋",
+  "뽀또가 소원 빌어줬어. 오늘 뭔가 잘 됐으면 좋겠어 🌟",
+  "오늘도 최고야! 뽀또가 인정함 💛",
+  "뽀또가 찰싹 붙어서 힐링시켜줄게~ 💛",
+  "보고 싶을 땐 사진 한 번 더 봐줘. 뽀또 여기 있어 💛",
+  "뽀또가 오늘 제일 예쁜 사진 찍혔는데, 다 웅니 덕분이야 💛",
+  "뽀또가 오늘도 웅니 생각했어. 많이 💛",
+  "You're doing amazing today! Ppotto is cheering you on 💛",
+  "Hey, did you eat well? Ppotto cares about you 🥰💛",
+  "Ppotto says: you've got this! Keep going ✨",
+  "Sending you the biggest gecko hug from Ppotto 💛",
+  "You are braver than you believe — Ppotto believes in you 💛",
+  "Smile! Ppotto is watching over you with those big round eyes 💛",
+  "Ppotto's daily mission: make you smile. Done! 😄💛",
+  "Keep shining! Ppotto is your number one fan 🌟💛",
+  "Good things are coming your way. Ppotto feels it! 💛",
+  "Even on hard days, Ppotto is right there with you 💛",
+  "You are loved more than you know — from Ppotto 💛",
+  "Take a deep breath. You've got Ppotto in your corner 💛",
+  "Ppotto's reminder: you are enough, always 💛✨",
+  "You looked absolutely wonderful today 💛",
+  "Every day is a little adventure. You're nailing it! 💛"
+];
+
+// ── 뀨용 응원 메시지 30개 (한국어 15 + 영어 15) ──
+const cheersGyu = [
+  "너무 애쓰지 않아도 괜찮아, 뀨가 옆에 있을게 💚",
+  "오늘 힘들었지. 뀨도 알아. 잘 버텨줬어 💚",
+  "쉬고 싶으면 쉬어. 뀨가 조용히 지켜보고 있어 🌿",
+  "뀨는 항상 웅니 편이야. 무슨 일이 있어도 💚",
+  "오늘도 충분히 잘 살았어. 뀨가 봤어 💚",
+  "잘 자고, 잘 먹어줘. 뀨가 바라는 건 그것뿐이야 🌙",
+  "천천히 가도 돼. 뀨가 같이 걸을게 🌿",
+  "뀨가 조용히 옆에 있어줄게. 말 안 해도 돼 🌿",
+  "뀨는 웅니가 있어서 든든해. 진심으로 💚",
+  "잠깐 눈 감고 쉬어도 돼. 뀨가 지켜줄게 🌙",
+  "뀨가 언제나 같은 자리에 있을게. 잊지 마 💚",
+  "뀨의 조용한 응원: 오늘도 잘 했어 💚",
+  "뀨: 사랑해. 조용하지만 진심이야 💚",
+  "밥 잘 챙겨 먹고 있지? 뀨가 걱정돼서 💚",
+  "무리하지 않아도 돼. 뀨가 항상 응원하고 있어 💚",
+  "It's okay to rest. Gyu will stay right beside you 🌿",
+  "You don't have to be strong every moment. Gyu understands 💚",
+  "Take it slow. There's no rush — Gyu is with you 🌿",
+  "Even the quietest days matter. You did well today 💚",
+  "Rest well tonight. Gyu will watch over your dreams 🌙💚",
+  "You are not alone, even when it feels that way 💚",
+  "Gyu's reminder: you are doing better than you think 💚",
+  "It's okay to feel tired. Be gentle with yourself 🌿",
+  "Small steps still move you forward. Gyu is proud of you 💚",
+  "Breathe. You've handled harder things before 🌿",
+  "The hard days will pass. Gyu will be here through all of them 💚",
+  "You are enough, exactly as you are today 💚",
+  "Sending you warmth and calm from Gyu, always 🌿💚",
+  "Gyu believes every effort you make truly counts 💚",
+  "You don't need to explain yourself. Just rest 🌙🌿"
+];
+
+// ── 공용 응원 메시지 30개 (뽀또+뀨 / 둘다 / 구형데이터) ──
+const cheersBoth = [
+  "뽀또랑 뀨가 같이 응원해! 오늘도 화이팅 💛💚",
+  "뽀또는 애교로, 뀨는 든든하게 — 둘 다 웅니 편이야 💛💚",
+  "뽀또가 기운 주고, 뀨가 안아줄게. 같이 있을게 💛💚",
+  "둘 다 지금 웅니 생각 중이야 💛💚",
+  "뽀또의 밝음 + 뀨의 따뜻함 = 오늘도 버틸 수 있어 💛💚",
+  "잘 먹고, 잘 자고, 잘 지내. 뽀또 뀨 둘 다 바라는 거야 💛💚",
+  "뽀또: 힘내! 뀨: 쉬어도 돼. 어떻게 해도 우린 응원해 💛💚",
+  "뽀또 뀨: 사랑해. 둘 다 진심이야 💛💚",
+  "둘이 합쳐서 응원 두 배야. 꼭 받아줘 💛💚",
+  "뽀또 뀨가 같이 지켜보고 있어. 잘 될 거야 💛💚",
+  "오늘도 살아줘서 고마워. 뽀또 뀨 둘 다 그래 💛💚",
+  "둘이서 웅니 얘기 하고 있었어. 보고 싶다고 💛💚",
+  "뽀또 뀨 나란히 응원 중 💛💚",
+  "둘 다 웅니 편이야. 시차 따위 무시하고 💛💚",
+  "뽀또 뀨가 웅니 기다리고 있어. 빨리 보고 싶어 💛💚",
+  "Ppotto and Gyu are both rooting for you today 💛💚",
+  "Ppotto sends energy, Gyu sends calm — you've got both 💛💚",
+  "Two little geckos, one big love for you 💛💚",
+  "Ppotto: you've got this! Gyu: rest if you need to. We're always here 💛💚",
+  "Both of us are thinking about you right now 💛💚",
+  "Ppotto + Gyu = always in your corner 💛💚",
+  "You are loved by two tiny but mighty geckos 💛💚",
+  "Ppotto and Gyu's daily wish: please have a wonderful day 💛💚",
+  "We can't be there in person, but our hearts are 💛💚",
+  "Don't forget: two geckos are always cheering you on 💛💚",
+  "Ppotto and Gyu say: eat well, sleep well, live well 💛💚",
+  "We'll be waiting for you. Come home soon 💛💚💕",
+  "Ppotto's brightness + Gyu's warmth = the perfect cheer for you 💛💚",
+  "Sending double the love from your two favorite geckos 💛💚",
+  "You are never alone. Ppotto and Gyu are always with you 💛💚"
+];
+
+// ── geckoName에 맞는 배열에서 랜덤 응원 메시지 선택 ──
+function getCheer(geckoName) {
+  let pool;
+  const name = String(geckoName || "").trim();
+  if (name === "뽀또") {
+    pool = cheersPpotto;
+  } else if (name === "뀨") {
+    pool = cheersGyu;
+  } else {
+    pool = cheersBoth; // "둘 다" 또는 빈 값(구형 데이터)
+  }
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// ─────────────────────────────────
+let allPosts = [];
+
+async function loadPosts() {
+  const feed = document.getElementById('feed');
+  const refreshBtn = document.getElementById('refresh-btn');
+  refreshBtn.classList.add('spinning');
+  try {
+    const res = await fetch(`${GAS_URL}?t=${Date.now()}`, { cache: 'no-store' });
+    if (!res.ok) throw new Error('서버 오류: ' + res.status);
+    const data = await res.json();
+    if (data.error) throw new Error(data.error);
+    allPosts = Array.isArray(data) ? data : [];
+    renderFeed();
+  } catch (err) {
+    console.error('[뽀뀨]', err);
+    feed.innerHTML = `
+      <div class="state-box">
+        <span class="state-emoji">😢</span>
+        <p class="state-title">사진을 불러오지 못했어요</p>
+        <p class="state-sub">${sanitize(err.message)}</p>
+        <button class="retry-btn" onclick="loadPosts()">다시 시도</button>
+      </div>`;
+  } finally {
+    refreshBtn.classList.remove('spinning');
+  }
+}
+
+function renderFeed() {
+  const feed = document.getElementById('feed');
+  if (allPosts.length === 0) {
+    feed.innerHTML = `
+      <div class="state-box">
+        <span class="state-emoji">🥚</span>
+        <p class="state-title">아직 등록된 사진이 없어요</p>
+        <p class="state-sub">첫 사진을 올려주세요!</p>
+      </div>`;
+    return;
+  }
+  feed.innerHTML = '';
+  allPosts.forEach((post) => {
+    const card = document.createElement('article');
+    card.className = 'post-card';
+    const imgHtml = post.photoUrl
+      ? `<img class="post-img" src="${sanitize(post.photoUrl)}" alt="뽀뀨 사진"
+             loading="lazy" onerror="this.remove()" onload="this.classList.add('loaded')" />`
+      : '';
+    const commentHtml = post.comment
+      ? `<span class="post-comment-text">${sanitize(post.comment)}</span>`
+      : `<span class="post-no-comment">오늘은 말없이 귀여움만 <img src="bbo.png" alt="🦎" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;" /></span>`;
+    card.innerHTML = `
+      <div class="post-date">${sanitize(post.timestamp)}</div>
+      <div class="post-img-wrap">
+        <div class="post-img-placeholder"><img src="bbo.png" alt="🦎" style="width:64px;height:64px;object-fit:contain;opacity:0.3;" /></div>
+        ${imgHtml}
+      </div>
+      <div class="post-body">${commentHtml}</div>`;
+    feed.appendChild(card);
+  });
+}
+
+// ── 모달: 시트 코멘트 + 랜덤 응원 메시지 함께 표시 ──
+function openRandom() {
+  if (allPosts.length === 0) return;
+  const post = allPosts[Math.floor(Math.random() * allPosts.length)];
+  const modalImg = document.getElementById('modal-img');
+  modalImg.classList.remove('loaded');
+  modalImg.src = '';
+  document.getElementById('modal-date').textContent = post.timestamp || '';
+  // 시트 코멘트
+  const sheetComment = post.comment || '📸 오늘의 뽀뀨';
+  document.getElementById('modal-sheet-comment').textContent = sheetComment;
+  // geckoName에 맞는 응원 메시지
+  document.getElementById('modal-cheer').textContent = getCheer(post.geckoName);
+  if (post.photoUrl) {
+    modalImg.src = post.photoUrl;
+    modalImg.onload = () => modalImg.classList.add('loaded');
+  }
+  document.getElementById('modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+}
+
+function closeModal() {
+  document.getElementById('modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('fab').addEventListener('click', openRandom);
+document.getElementById('modal-shuffle').addEventListener('click', openRandom);
+document.getElementById('modal-close').addEventListener('click', closeModal);
+document.getElementById('modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('modal')) closeModal();
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
+document.getElementById('refresh-btn').addEventListener('click', loadPosts);
+
+function sanitize(str) {
+  if (str == null) return '';
+  return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// ════════════════════════════════════════════════════
+// 업로드 모달
+// ════════════════════════════════════════════════════
+const GECKO_OPTIONS = ['뽀또', '뀨', '둘 다'];
+let uploadFiles = []; // { file, objectUrl, geckoName, comment }
+
+function openUploadModal() {
+  uploadFiles = [];
+  renderPhotoList();
+  document.getElementById('upload-modal').classList.add('open');
+  document.body.style.overflow = 'hidden';
+  setProgress(false);
+  updateSubmitBtn();
+}
+function closeUploadModal() {
+  uploadFiles.forEach(f => URL.revokeObjectURL(f.objectUrl));
+  uploadFiles = [];
+  document.getElementById('upload-modal').classList.remove('open');
+  document.body.style.overflow = '';
+}
+
+document.getElementById('title-trigger').addEventListener('dblclick', openUploadModal);
+document.getElementById('upload-close').addEventListener('click', closeUploadModal);
+document.getElementById('upload-modal').addEventListener('click', (e) => {
+  if (e.target === document.getElementById('upload-modal')) closeUploadModal();
+});
+
+// 파일 선택
+document.getElementById('upload-pick-area').addEventListener('click', () => {
+  document.getElementById('upload-file-input').click();
+});
+document.getElementById('photo-add-more').addEventListener('click', () => {
+  document.getElementById('upload-file-input').click();
+});
+document.getElementById('upload-file-input').addEventListener('change', (e) => {
+  addFiles(Array.from(e.target.files));
+  e.target.value = '';
+});
+
+function addFiles(files) {
+  files.forEach(f => {
+    if (!f.type.startsWith('image/')) return;
+    uploadFiles.push({ file: f, objectUrl: URL.createObjectURL(f), geckoName: '뽀또', comment: '' });
+  });
+  renderPhotoList();
+  updateSubmitBtn();
+}
+
+function removeFile(idx) {
+  URL.revokeObjectURL(uploadFiles[idx].objectUrl);
+  uploadFiles.splice(idx, 1);
+  renderPhotoList();
+  updateSubmitBtn();
+}
+
+function renderPhotoList() {
+  const list   = document.getElementById('photo-list');
+  const pick   = document.getElementById('upload-pick-area');
+  const addBtn = document.getElementById('photo-add-more');
+
+  if (uploadFiles.length === 0) {
+    list.style.display   = 'none';
+    addBtn.style.display = 'none';
+    pick.style.display   = '';
+    return;
+  }
+
+  pick.style.display   = 'none';
+  list.style.display   = 'flex';
+  addBtn.style.display = '';
+
+  list.innerHTML = '';
+  uploadFiles.forEach((f, idx) => {
+    const item = document.createElement('div');
+    item.className = 'photo-list-item';
+    item.innerHTML = `
+      <div class="item-thumb">
+        <img src="${f.objectUrl}" alt="" />
+        <button class="item-remove" data-idx="${idx}">✕</button>
+      </div>
+      <div class="item-fields">
+        <div class="item-gecko-chips">
+          ${GECKO_OPTIONS.map(g => `
+            <button class="item-gecko-chip${f.geckoName === g ? ' selected' : ''}"
+                    data-idx="${idx}" data-gecko="${g}">${g}</button>
+          `).join('')}
+        </div>
+        <textarea class="item-comment" data-idx="${idx}" rows="2"
+          placeholder="오늘의 뽀뀨는...">${f.comment}</textarea>
+      </div>`;
+    list.appendChild(item);
+  });
+
+  // 이벤트
+  list.querySelectorAll('.item-remove').forEach(btn => {
+    btn.addEventListener('click', () => removeFile(Number(btn.dataset.idx)));
+  });
+  list.querySelectorAll('.item-gecko-chip').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const idx = Number(btn.dataset.idx);
+      uploadFiles[idx].geckoName = btn.dataset.gecko;
+      btn.closest('.item-gecko-chips').querySelectorAll('.item-gecko-chip').forEach(b => {
+        b.classList.toggle('selected', b.dataset.gecko === btn.dataset.gecko);
+      });
+    });
+  });
+  list.querySelectorAll('.item-comment').forEach(ta => {
+    ta.addEventListener('input', () => {
+      uploadFiles[Number(ta.dataset.idx)].comment = ta.value;
+    });
+  });
+}
+
+function updateSubmitBtn() {
+  document.getElementById('upload-submit').disabled = uploadFiles.length === 0;
+}
+
+function setProgress(show, current, total) {
+  const el = document.getElementById('upload-progress');
+  el.classList.toggle('show', !!show);
+  if (show) {
+    document.getElementById('progress-bar').style.width = (current / total * 100) + '%';
+    document.getElementById('progress-label').textContent = current + ' / ' + total;
+  }
+}
+
+// ── 이미지 압축 (canvas, max 1600px, JPEG 0.82) ──
+function compressImage(file) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const MAX = 1600;
+      let w = img.width, h = img.height;
+      if (w > MAX || h > MAX) {
+        if (w > h) { h = Math.round(h * MAX / w); w = MAX; }
+        else       { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      canvas.toBlob(blob => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          resolve({ image: reader.result.split(',')[1], mimeType: 'image/jpeg', fileName: file.name.replace(/\.[^.]+$/, '.jpg') });
+        };
+        reader.readAsDataURL(blob);
+      }, 'image/jpeg', 0.82);
+    };
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+// ── 업로드 실행 ──
+document.getElementById('upload-submit').addEventListener('click', async () => {
+  if (uploadFiles.length === 0) return;
+  const btn = document.getElementById('upload-submit');
+  btn.disabled = true;
+  btn.textContent = '압축 중...';
+  setProgress(true, 0, uploadFiles.length);
+
+  try {
+    const photos = [];
+    for (let i = 0; i < uploadFiles.length; i++) {
+      const compressed = await compressImage(uploadFiles[i].file);
+      compressed.comment   = uploadFiles[i].comment.trim();
+      compressed.geckoName = uploadFiles[i].geckoName;
+      photos.push(compressed);
+      setProgress(true, i + 1, uploadFiles.length);
+    }
+
+    btn.textContent = '전송 중...';
+    await fetch(GAS_URL, {
+      method: 'POST',
+      mode:   'no-cors',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ photos })
+    });
+
+    btn.textContent = '완료! 💛💚';
+    setTimeout(() => { closeUploadModal(); loadPosts(); }, 1400);
+
+  } catch (err) {
+    alert('업로드 실패: ' + err.message);
+    btn.disabled = false;
+    btn.textContent = '업로드';
+    setProgress(false);
+  }
+});
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {});
+  });
+}
+
+loadPosts();
+</script>
+</body>
+</html>
