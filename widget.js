@@ -139,7 +139,7 @@ try {
   const req = new Request(GAS_URL);
   req.timeoutInterval = 10;
   const data = await req.loadJSON();
-  posts = Array.isArray(data) ? data : [];
+  posts = Array.isArray(data) ? data : (data.posts || []);
 } catch (e) {
   console.log("[뽀뀨 위젯] 데이터 로딩 실패:", e.message);
 }
