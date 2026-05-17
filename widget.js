@@ -159,8 +159,8 @@ if (posts.length > 0) {
     }
   }
 
-  widget.backgroundImage = bgImage || null;
-  if (!bgImage) widget.backgroundColor = new Color("#2e6b3a");
+  if (bgImage) widget.backgroundImage = bgImage;
+  else widget.backgroundColor = new Color("#2e6b3a");
 
   widget.addSpacer();
 
