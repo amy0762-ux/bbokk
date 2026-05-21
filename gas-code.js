@@ -7,7 +7,7 @@ var SHEET_NAME = "시트1";
 var FOLDER_ID = "1e0bct-dEkct64mT_eUHEvGFPTPj1BiND";
 var TELEGRAM_TOKEN = "8452923975:AAHUMsA4UoVp29Y4LTlDeQ9umnGtMYqbB44";
 var TELEGRAM_CHAT_ID = "8658056290";
-var WEB_APP_URL = "https://github.com/amy0762-ux/bbokk";
+var WEB_APP_URL = "https://amy0762-ux.github.io/bbokk/";
 
 // ====================================================
 // [doPost] 앱 → GAS: 사진 배열 업로드
@@ -20,6 +20,34 @@ function doPost(e) {
       ? e.parameter.data.replace(/ /g, '+')
       : (e.postData ? e.postData.contents : "{}");
     var payload = JSON.parse(raw);
+
+    // ── 게코 이름 업데이트 (action: "updateGecko") ──
+    if (payload.action === "updateGecko") {
+      var upSS    = SpreadsheetApp.openById(SPREADSHEET_ID);
+      var upSheet = upSS.getSheetByName(SHEET_NAME);
+      var upLast  = upSheet.getLastRow();
+      if (upLast < 2) return buildResponse({ error: "no rows" });
+
+      var urlVals = upSheet.getRange(2, 3, upLast - 1, 1).getValues();
+      var targetUrl = String(payload.photoUrl || "");
+
+      // Drive thumbnail URL에서 파일 ID만 추출해서 비교
+      function extractDriveId(url) {
+        var m = String(url).match(/[?&]id=([a-zA-Z0-9_-]+)/);
+        return m ? m[1] : url;
+      }
+      var targetId = extractDriveId(targetUrl);
+
+      for (var ri = 0; ri < urlVals.length; ri++) {
+        var cellUrl = String(urlVals[ri][0] || "");
+        if (extractDriveId(cellUrl) === targetId || cellUrl === targetUrl) {
+          upSheet.getRange(ri + 2, 4).setValue(payload.geckoName || "");
+          return buildResponse({ success: true, row: ri + 2 });
+        }
+      }
+      return buildResponse({ error: "photo not found" });
+    }
+
     var photos = Array.isArray(payload.photos) ? payload.photos : [];
     if (photos.length === 0) return buildResponse({ error: "photos 배열 비어 있음" });
 

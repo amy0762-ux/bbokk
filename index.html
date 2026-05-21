@@ -261,6 +261,38 @@
     }
     .upload-submit:disabled { opacity: 0.45; cursor: not-allowed; }
 
+    /* ── 피드 카드: 게코 배지 + 인라인 피커 ── */
+    .post-gecko-row { margin-bottom: 8px; }
+    .post-gecko-badge {
+      display: inline-flex; align-items: center; gap: 4px;
+      padding: 4px 11px; border-radius: 20px; font-size: 12px; font-weight: 700;
+      border: 1.5px solid var(--border); background: var(--bg); color: var(--text-mid);
+      cursor: pointer; transition: background 0.15s, border-color 0.15s;
+      line-height: 1.4;
+    }
+    .post-gecko-badge[data-gecko="뽀또"] { background: #fffde7; border-color: #f9c74f; color: #7a5500; }
+    .post-gecko-badge[data-gecko="뀨"]   { background: var(--green-light); border-color: var(--green-main); color: var(--green-dark); }
+    .post-gecko-badge[data-gecko="둘 다"] { background: #f0fff0; border-color: #aaa; color: #444; }
+    .post-gecko-badge::after { content: ' ✎'; font-size: 10px; opacity: 0.5; }
+
+    .gecko-picker {
+      display: flex; gap: 5px; margin-top: 6px; flex-wrap: wrap;
+    }
+    .gecko-pick-opt {
+      padding: 5px 12px; border-radius: 20px; font-size: 12px; font-weight: 700;
+      border: 1.5px solid var(--border); background: var(--white); color: var(--text-mid);
+      cursor: pointer; transition: all 0.12s;
+    }
+    .gecko-pick-opt[data-gecko="뽀또"] { border-color: #f9c74f; }
+    .gecko-pick-opt[data-gecko="뽀또"]:active,
+    .gecko-pick-opt[data-gecko="뽀또"].active { background: #fffde7; color: #7a5500; }
+    .gecko-pick-opt[data-gecko="뀨"] { border-color: var(--green-main); }
+    .gecko-pick-opt[data-gecko="뀨"]:active,
+    .gecko-pick-opt[data-gecko="뀨"].active { background: var(--green-light); color: var(--green-dark); }
+    .gecko-pick-opt[data-gecko="둘 다"] { border-color: #aaa; }
+    .gecko-pick-opt[data-gecko="둘 다"]:active,
+    .gecko-pick-opt[data-gecko="둘 다"].active { background: #f0fff0; color: #333; }
+
     /* 업로드 진행 */
     .upload-progress {
       padding: 12px 16px; display: none;
@@ -539,9 +571,17 @@ async function fetchPage(offset, feed, isFirst) {
   }
 }
 
+function geckoLabel(name) {
+  if (name === '뽀또') return '💛 뽀또';
+  if (name === '뀨')   return '💚 뀨';
+  if (name === '둘 다') return '💛💚 둘 다';
+  return '· 미설정';
+}
+
 function appendCard(feed, post) {
   const card = document.createElement('article');
   card.className = 'post-card';
+  card.dataset.photoUrl = post.photoUrl || '';
   const imgHtml = post.photoUrl
     ? `<img class="post-img" src="${sanitize(post.photoUrl)}" alt="뽀뀨 사진"
            loading="lazy" onerror="this.remove()" onload="this.classList.add('loaded')" />`
@@ -549,13 +589,19 @@ function appendCard(feed, post) {
   const commentHtml = post.comment
     ? `<span class="post-comment-text">${sanitize(post.comment)}</span>`
     : `<span class="post-no-comment">오늘은 말없이 귀여움만 <img src="bbo.png" alt="🦎" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;" /></span>`;
+  const geckoName = post.geckoName || '';
   card.innerHTML = `
     <div class="post-date">${sanitize(post.timestamp)}</div>
     <div class="post-img-wrap">
       <div class="post-img-placeholder"><img src="bbo.png" alt="🦎" style="width:64px;height:64px;object-fit:contain;opacity:0.3;" /></div>
       ${imgHtml}
     </div>
-    <div class="post-body">${commentHtml}</div>`;
+    <div class="post-body">
+      <div class="post-gecko-row">
+        <button class="post-gecko-badge" data-gecko="${sanitize(geckoName)}">${geckoLabel(geckoName)}</button>
+      </div>
+      ${commentHtml}
+    </div>`;
   feed.appendChild(card);
 }
 
@@ -815,6 +861,76 @@ document.getElementById('upload-submit').addEventListener('click', async () => {
     btn.textContent = '업로드';
     setProgress(false);
   }
+});
+
+// ════════════════════════════════════════════════════
+// 게코 이름 재설정 (피드 카드 인라인 피커)
+// ════════════════════════════════════════════════════
+const GECKO_EDIT_OPTIONS = ['뽀또', '뀨', '둘 다'];
+
+function closeAllPickers() {
+  document.querySelectorAll('.gecko-picker').forEach(p => p.remove());
+}
+
+function openGeckoPicker(badge) {
+  // 이미 열려 있으면 닫기(토글)
+  const existing = badge.parentElement.querySelector('.gecko-picker');
+  closeAllPickers();
+  if (existing) return;
+
+  const currentGecko = badge.dataset.gecko;
+  const picker = document.createElement('div');
+  picker.className = 'gecko-picker';
+  picker.innerHTML = GECKO_EDIT_OPTIONS.map(g => `
+    <button class="gecko-pick-opt${g === currentGecko ? ' active' : ''}" data-gecko="${g}">
+      ${geckoLabel(g)}
+    </button>`).join('');
+  badge.parentElement.appendChild(picker);
+}
+
+async function selectGeckoOption(opt) {
+  const picker   = opt.closest('.gecko-picker');
+  const row      = picker.parentElement;             // .post-gecko-row
+  const badge    = row.querySelector('.post-gecko-badge');
+  const card     = opt.closest('.post-card');
+  const newGecko = opt.dataset.gecko;
+  const photoUrl = card ? card.dataset.photoUrl : '';
+
+  // 배지 즉시 갱신
+  badge.dataset.gecko = newGecko;
+  badge.textContent   = geckoLabel(newGecko);
+  badge.insertAdjacentText('beforeend', ''); // force repaint
+  picker.remove();
+
+  // allPosts 로컬 상태 동기화
+  const post = allPosts.find(p => p.photoUrl === photoUrl);
+  if (post) post.geckoName = newGecko;
+
+  // GAS 업데이트 (no-cors, fire-and-forget)
+  if (photoUrl) {
+    fetch(GAS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'data=' + encodeURIComponent(JSON.stringify({
+        action: 'updateGecko',
+        photoUrl: photoUrl,
+        geckoName: newGecko
+      }))
+    }).catch(err => console.warn('[뽀뀨] gecko update failed', err));
+  }
+}
+
+// 피드 이벤트 델리게이션 (카드가 동적으로 생성되므로)
+document.getElementById('feed').addEventListener('click', (e) => {
+  const badge = e.target.closest('.post-gecko-badge');
+  if (badge) { openGeckoPicker(badge); return; }
+
+  const opt = e.target.closest('.gecko-pick-opt');
+  if (opt) { selectGeckoOption(opt); return; }
+
+  // 피커 바깥 클릭 시 닫기
+  if (!e.target.closest('.gecko-picker')) closeAllPickers();
 });
 
 if ('serviceWorker' in navigator) {
