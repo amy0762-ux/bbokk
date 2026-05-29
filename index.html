@@ -940,6 +940,13 @@ if ('serviceWorker' in navigator) {
 }
 
 loadPosts();
+
+// #upload 해시로 접속 시 업로드 모달 자동 오픈
+if (location.hash === '#upload') {
+  window.addEventListener('load', () => {
+    setTimeout(openUploadModal, 300);
+  });
+}
 </script>
 </body>
 </html>
