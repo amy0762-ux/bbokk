@@ -53,6 +53,10 @@
 
     /* ── 피드 ── */
     #feed { padding-bottom: 96px; }
+    #feed.gallery-mode { display: grid; grid-template-columns: repeat(3, 1fr); gap: 2px; padding: 2px; padding-bottom: 96px; }
+    #feed.gallery-mode .post-card { margin: 0; border: none; cursor: pointer; }
+    #feed.gallery-mode .post-date, #feed.gallery-mode .post-body { display: none; }
+    #feed.gallery-mode > .state-box, #feed.gallery-mode > #feed-sentinel { grid-column: 1 / -1; }
 
     /* ── 게시물 카드 ── */
     .post-card {
@@ -317,6 +321,7 @@
       <img class="gecko-img" src="kkyu.png" alt="뀨" style="width:34px;height:34px;object-fit:contain;" />
     </div>
     <div class="header-actions">
+      <button class="header-refresh" id="gallery-btn" title="모아보기">⊞</button>
       <button class="header-refresh" id="refresh-btn" title="새로고침">↻</button>
     </div>
   </header>
@@ -627,17 +632,12 @@ function disconnectObserver() {
 function renderFeed() { loadPosts(); }
 
 // ── 모달: 시트 코멘트 + 랜덤 응원 메시지 함께 표시 ──
-function openRandom() {
-  if (allPosts.length === 0) return;
-  const post = allPosts[Math.floor(Math.random() * allPosts.length)];
+function showPostInModal(post) {
   const modalImg = document.getElementById('modal-img');
   modalImg.classList.remove('loaded');
   modalImg.src = '';
   document.getElementById('modal-date').textContent = post.timestamp || '';
-  // 시트 코멘트
-  const sheetComment = post.comment || '📸 오늘의 뽀뀨';
-  document.getElementById('modal-sheet-comment').textContent = sheetComment;
-  // geckoName에 맞는 응원 메시지
+  document.getElementById('modal-sheet-comment').textContent = post.comment || '📸 오늘의 뽀뀨';
   document.getElementById('modal-cheer').textContent = getCheer(post.geckoName);
   if (post.photoUrl) {
     modalImg.src = post.photoUrl;
@@ -645,6 +645,11 @@ function openRandom() {
   }
   document.getElementById('modal').classList.add('open');
   document.body.style.overflow = 'hidden';
+}
+
+function openRandom() {
+  if (allPosts.length === 0) return;
+  showPostInModal(allPosts[Math.floor(Math.random() * allPosts.length)]);
 }
 
 function closeModal() {
@@ -660,6 +665,16 @@ document.getElementById('modal').addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 document.getElementById('refresh-btn').addEventListener('click', loadPosts);
+document.getElementById('gallery-btn').addEventListener('click', () => {
+  document.getElementById('feed').classList.toggle('gallery-mode');
+});
+document.getElementById('feed').addEventListener('click', (e) => {
+  if (!e.currentTarget.classList.contains('gallery-mode')) return;
+  const card = e.target.closest('.post-card');
+  if (!card) return;
+  const post = allPosts.find(p => (p.photoUrl || '') === card.dataset.photoUrl);
+  if (post) showPostInModal(post);
+});
 
 function sanitize(str) {
   if (str == null) return '';
