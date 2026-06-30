@@ -509,7 +509,7 @@ function getCheer(geckoName) {
 }
 
 // ─────────────────────────────────
-const PAGE_SIZE = 20;
+const PAGE_SIZE = 10;
 let allPosts = [];
 let feedOffset = 0;
 let feedTotal = 0;
@@ -588,8 +588,8 @@ function appendCard(feed, post) {
   card.className = 'post-card';
   card.dataset.photoUrl = post.photoUrl || '';
   const imgHtml = post.photoUrl
-    ? `<img class="post-img" src="${sanitize(post.photoUrl)}" alt="뽀뀨 사진"
-           loading="lazy" onerror="this.remove()" onload="this.classList.add('loaded')" />`
+    ? `<img class="post-img" src="${sanitize(post.photoUrl.replace(/sz=w\d+/, 'sz=w640'))}" alt="뽀뀨 사진"
+           loading="lazy" decoding="async" onerror="this.remove()" onload="this.classList.add('loaded')" />`
     : '';
   const commentHtml = post.comment
     ? `<span class="post-comment-text">${sanitize(post.comment)}</span>`
@@ -665,8 +665,10 @@ document.getElementById('modal').addEventListener('click', (e) => {
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeModal(); });
 document.getElementById('refresh-btn').addEventListener('click', loadPosts);
-document.getElementById('gallery-btn').addEventListener('click', () => {
-  document.getElementById('feed').classList.toggle('gallery-mode');
+document.getElementById('gallery-btn').addEventListener('click', (e) => {
+  const on = document.getElementById('feed').classList.toggle('gallery-mode');
+  e.currentTarget.textContent = on ? '☰' : '⊞';
+  e.currentTarget.title = on ? '한 장씩 보기' : '모아보기';
 });
 document.getElementById('feed').addEventListener('click', (e) => {
   if (!e.currentTarget.classList.contains('gallery-mode')) return;
