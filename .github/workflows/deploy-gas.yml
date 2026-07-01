@@ -7,6 +7,7 @@ on:
     paths:
       - 'gas-code.js'
       - 'appsscript.json'
+      - '.github/workflows/deploy-gas.yml'
 
 jobs:
   deploy:
@@ -28,3 +29,7 @@ jobs:
 
       - name: Push to GAS
         run: clasp push --force
+
+      # 웹앱 배포(@26)를 새 버전으로 갱신 → /exec URL이 바로 새 코드 서빙
+      - name: Redeploy web app
+        run: clasp deploy -i AKfycbxh9ZoxMXRHUw8Phzz9OHiaTZJ4R0Onen8KE-DAyoGUNkzpntgXhXlkuzHlBOktRtatqg -d "auto: ${{ github.event.head_commit.message }}"
