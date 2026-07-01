@@ -21,31 +21,14 @@ function doPost(e) {
       : (e.postData ? e.postData.contents : "{}");
     var payload = JSON.parse(raw);
 
-    // ── 게코 이름 업데이트 (action: "updateGecko") ──
-    if (payload.action === "updateGecko") {
-      var upSS    = SpreadsheetApp.openById(SPREADSHEET_ID);
-      var upSheet = upSS.getSheetByName(SHEET_NAME);
-      var upLast  = upSheet.getLastRow();
-      if (upLast < 2) return buildResponse({ error: "no rows" });
-
-      var urlVals = upSheet.getRange(2, 3, upLast - 1, 1).getValues();
-      var targetUrl = String(payload.photoUrl || "");
-
-      // Drive thumbnail URL에서 파일 ID만 추출해서 비교
-      function extractDriveId(url) {
-        var m = String(url).match(/[?&]id=([a-zA-Z0-9_-]+)/);
-        return m ? m[1] : url;
-      }
-      var targetId = extractDriveId(targetUrl);
-
-      for (var ri = 0; ri < urlVals.length; ri++) {
-        var cellUrl = String(urlVals[ri][0] || "");
-        if (extractDriveId(cellUrl) === targetId || cellUrl === targetUrl) {
-          upSheet.getRange(ri + 2, 4).setValue(payload.geckoName || "");
-          return buildResponse({ success: true, row: ri + 2 });
-        }
-      }
-      return buildResponse({ error: "photo not found" });
+    // ── 게코 이름 / 코멘트 업데이트 (photoUrl로 행 찾아 해당 열 갱신) ──
+    if (payload.action === "updateGecko" || payload.action === "updateComment") {
+      var upSheet = SpreadsheetApp.openById(SPREADSHEET_ID).getSheetByName(SHEET_NAME);
+      var row = findPhotoRow(upSheet, payload.photoUrl);
+      if (row < 0) return buildResponse({ error: "photo not found" });
+      if (payload.action === "updateGecko") upSheet.getRange(row, 4).setValue(payload.geckoName || "");
+      else                                  upSheet.getRange(row, 2).setValue(payload.comment || "");
+      return buildResponse({ success: true, row: row });
     }
 
     var photos = Array.isArray(payload.photos) ? payload.photos : [];
@@ -190,6 +173,27 @@ function doGet(e) {
   } catch (err) {
     return buildResponse({ error: err.toString() });
   }
+}
+
+
+// ====================================================
+// [헬퍼] photoUrl(썸네일)로 시트 행 번호 찾기 (없으면 -1)
+// ====================================================
+function findPhotoRow(sheet, photoUrl) {
+  var last = sheet.getLastRow();
+  if (last < 2) return -1;
+  var urlVals = sheet.getRange(2, 3, last - 1, 1).getValues();
+  var targetUrl = String(photoUrl || "");
+  var targetId = extractDriveId(targetUrl);
+  for (var ri = 0; ri < urlVals.length; ri++) {
+    var cellUrl = String(urlVals[ri][0] || "");
+    if (extractDriveId(cellUrl) === targetId || cellUrl === targetUrl) return ri + 2;
+  }
+  return -1;
+}
+function extractDriveId(url) {
+  var m = String(url).match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : url;
 }
 
 

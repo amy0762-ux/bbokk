@@ -74,6 +74,22 @@
     .post-body { padding: 13px 16px 16px; }
     .post-comment-text { font-size: 14px; line-height: 1.6; color: var(--text-dark); }
     .post-no-comment { font-size: 13px; color: var(--text-light); font-style: italic; }
+    .post-comment { cursor: pointer; }
+
+    /* 코멘트 인라인 수정 */
+    .comment-editor { padding-top: 2px; }
+    .comment-edit-ta {
+      width: 100%; border: 1px solid var(--border); border-radius: 8px;
+      padding: 8px 10px; font-size: 14px; line-height: 1.5; resize: none;
+      font-family: inherit; color: var(--text-dark); background: var(--white); outline: none;
+    }
+    .comment-edit-ta:focus { border-color: var(--green-main); }
+    .comment-edit-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+    .comment-edit-actions button {
+      padding: 6px 16px; border-radius: 16px; font-size: 13px; font-weight: 600;
+      cursor: pointer; border: 1px solid var(--border); background: var(--white); color: var(--text-mid);
+    }
+    .comment-edit-save { background: var(--green-main); color: var(--white); border-color: var(--green-main); }
 
     /* ── 상태 박스 ── */
     .state-box { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 80px 24px; gap: 14px; text-align: center; }
@@ -592,8 +608,8 @@ function appendCard(feed, post) {
            loading="lazy" decoding="async" onerror="this.remove()" onload="this.classList.add('loaded')" />`
     : '';
   const commentHtml = post.comment
-    ? `<span class="post-comment-text">${sanitize(post.comment)}</span>`
-    : `<span class="post-no-comment">오늘은 말없이 귀여움만 <img src="bbo.png" alt="🦎" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;" /></span>`;
+    ? `<span class="post-comment-text post-comment" title="탭해서 수정">${sanitize(post.comment)}</span>`
+    : `<span class="post-no-comment post-comment" title="탭해서 코멘트 추가">오늘은 말없이 귀여움만 <img src="bbo.png" alt="🦎" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;" /></span>`;
   const geckoName = post.geckoName || '';
   card.innerHTML = `
     <div class="post-date">${sanitize(post.timestamp)}</div>
@@ -940,6 +956,71 @@ async function selectGeckoOption(opt) {
   }
 }
 
+// ── 코멘트 인라인 수정 ──
+function postFromCard(card) {
+  return allPosts.find(p => (p.photoUrl || '') === (card ? card.dataset.photoUrl : ''));
+}
+
+function openCommentEditor(commentEl) {
+  const body = commentEl.closest('.post-body');
+  if (!body || body.querySelector('.comment-editor')) return; // 이미 열림
+  const post = postFromCard(commentEl.closest('.post-card'));
+  const cur = post ? post.comment : '';
+  const editor = document.createElement('div');
+  editor.className = 'comment-editor';
+  editor.innerHTML = `
+    <textarea class="comment-edit-ta" rows="2" placeholder="오늘의 뽀뀨는...">${sanitize(cur)}</textarea>
+    <div class="comment-edit-actions">
+      <button class="comment-edit-cancel">취소</button>
+      <button class="comment-edit-save">저장</button>
+    </div>`;
+  commentEl.style.display = 'none';
+  commentEl.insertAdjacentElement('afterend', editor);
+  const ta = editor.querySelector('textarea');
+  ta.focus();
+  ta.setSelectionRange(ta.value.length, ta.value.length);
+}
+
+function closeCommentEditor(editor, newComment) {
+  const commentEl = editor.previousElementSibling; // 숨긴 코멘트 span
+  if (newComment != null && commentEl) {
+    if (newComment) {
+      commentEl.className = 'post-comment-text post-comment';
+      commentEl.title = '탭해서 수정';
+      commentEl.textContent = newComment;
+    } else {
+      commentEl.className = 'post-no-comment post-comment';
+      commentEl.title = '탭해서 코멘트 추가';
+      commentEl.innerHTML = '오늘은 말없이 귀여움만 <img src="bbo.png" alt="🦎" style="width:16px;height:16px;object-fit:contain;vertical-align:middle;" />';
+    }
+  }
+  if (commentEl) commentEl.style.display = '';
+  editor.remove();
+}
+
+function saveCommentEditor(btn) {
+  const editor = btn.closest('.comment-editor');
+  const card = editor.closest('.post-card');
+  const photoUrl = card ? card.dataset.photoUrl : '';
+  const newComment = editor.querySelector('textarea').value.trim();
+  const post = postFromCard(card);
+  if (post) post.comment = newComment;
+  closeCommentEditor(editor, newComment);
+
+  if (photoUrl) {
+    fetch(GAS_URL, {
+      method: 'POST',
+      mode: 'no-cors',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: 'data=' + encodeURIComponent(JSON.stringify({
+        action: 'updateComment',
+        photoUrl: photoUrl,
+        comment: newComment
+      }))
+    }).catch(err => console.warn('[뽀뀨] comment update failed', err));
+  }
+}
+
 // 피드 이벤트 델리게이션 (카드가 동적으로 생성되므로)
 document.getElementById('feed').addEventListener('click', (e) => {
   const badge = e.target.closest('.post-gecko-badge');
@@ -947,6 +1028,17 @@ document.getElementById('feed').addEventListener('click', (e) => {
 
   const opt = e.target.closest('.gecko-pick-opt');
   if (opt) { selectGeckoOption(opt); return; }
+
+  // 코멘트 수정
+  if (e.target.closest('.comment-edit-save'))   { saveCommentEditor(e.target.closest('.comment-edit-save')); return; }
+  if (e.target.closest('.comment-edit-cancel')) { closeCommentEditor(e.target.closest('.comment-editor'), null); return; }
+  if (e.target.closest('.comment-editor')) return; // 에디터 내부(textarea 등) 클릭은 무시
+  const comment = e.target.closest('.post-comment');
+  if (comment && !document.getElementById('feed').classList.contains('gallery-mode')) {
+    closeAllPickers();
+    openCommentEditor(comment);
+    return;
+  }
 
   // 피커 바깥 클릭 시 닫기
   if (!e.target.closest('.gecko-picker')) closeAllPickers();
